@@ -1,0 +1,53 @@
+---
+- name: Install and configure nextcloud
+  hosts: nextcloud
+  become: true
+
+  pre_tasks:
+    - name: Load variables
+      ansible.builtin.include_vars: vars/config.yaml
+  tags: always
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.package:
+        name:
+          - epel-release
+          - yum-utils
+          - unzip
+          - curl
+          - wget
+          - policycoreutils-python-utils
+          - mlocate
+          - bzip2
+          - httpd
+          - mariadb
+          - mariadb-server
+        state: present
+
+    - name: Create nextcloud directory
+      ansible.builtin.file:
+        path: "{{ nextcloud_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Move apache2 virtual host
+      ansible.builtin.template:
+        src: templates/nextcloud.conf.j2
+        dest: /etc/httpd/conf.d/nextcloud.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart apache2
+
+    - name: Ensure apache2 is started and enabled
+      ansible.builtin.service:
+        name: httpd
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Load handlers
+      ansible.builtin.import_tasks: tasks/handlers.yaml

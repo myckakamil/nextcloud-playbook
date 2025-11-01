@@ -1,0 +1,15 @@
+<VirtualHost *:80>
+  DocumentRoot {{ nextcloud_dir }}
+  ServerName  {{ server_name }}.{{ domain }}
+
+  <Directory {{ nextcloud_dir }}>
+    Require all granted
+    AllowOverride All
+    Options FollowSymLinks MultiViews
+
+    <IfModule mod_dav.c>
+      Dav off
+    </IfModule>
+
+  </Directory>
+</VirtualHost>

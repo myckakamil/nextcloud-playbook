@@ -1,0 +1,4 @@
+---
+domain: lan.mycka.net
+server_name: nextcloud
+nextcloud_dir: /var/www/html/nextcloud/
