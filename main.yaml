@@ -6,6 +6,8 @@
   pre_tasks:
     - name: Load variables
       ansible.builtin.include_vars: vars/config.yaml
+    - name: Load vault
+      ansible.builtin.include_vars: vars/vault.yaml
   tags: always
 
   tasks:
@@ -21,8 +23,21 @@
           - mlocate
           - bzip2
           - httpd
+          - php
+          - php-cli
+          - php-common
+          - php-gd
+          - php-mbstring
+          - php-intl
+          - php-mysqlnd
+          - php-opcache
+          - php-pecl-apcu
+          - php-pecl-zip
+          - php-pecl-redis6
+          - php-pecl-imagick
           - mariadb
           - mariadb-server
+          - python3-PyMySQL
         state: present
 
     - name: Create nextcloud directory
@@ -47,6 +62,56 @@
         name: httpd
         state: started
         enabled: true
+
+    - name: Ensure mariadb is started and enabled
+      ansible.builtin.service:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Configure mariadb
+      ansible.builtin.blockinfile:
+        path: /etc/my.cnf.d/mariadb-server.cnf
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        insertafter: ^\[mysqld\]
+        block: |
+          skip_name_resolve = 1
+          character_set_server = utf8mb4
+          collation_server = utf8mb4_general_ci
+          transaction_isolation = READ-COMMITTED
+          binlog_format = ROW
+          innodb_large_prefix=ON
+          innodb_file_format=Barracuda
+          innodb_file_per_table=1
+          innodb_buffer_pool_size = 128M
+          innodb_flush_log_at_trx_commit = 2
+          query_cache_type = 1
+          query_cache_limit = 2M
+          query_cache_size = 64M
+          tmp_table_size=64M
+          max_heap_table_size=64M
+          slow_query_log = 1
+          slow_query_log_file = /var/log/mysql/slow.log
+          long_query_time = 1
+        backup: true
+      notify: Restart mariadb
+
+    - name: Create Nextcloud database
+      community.mysql.mysql_db:
+        name: "{{ nextcloud_db_name }}"
+        state: present
+        encoding: utf8mb4
+        collation: utf8mb4_general_ci
+        login_unix_socket: /var/lib/mysql/mysql.sock
+
+    - name: Create Nextcloud DB user
+      community.mysql.mysql_user:
+        name: "{{ nextcloud_db_user }}"
+        password: "{{ nextcloud_db_password }}"
+        host: localhost
+        priv: "{{ nextcloud_db_name }}.*:ALL"
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
 
   handlers:
     - name: Load handlers
