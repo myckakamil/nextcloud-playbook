@@ -11,6 +11,30 @@
   tags: always
 
   tasks:
+    - name: Disable SELinux permanently
+      ansible.posix.selinux:
+        state: disabled
+
+    - name: Import REMI GPG key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://rpms.remirepo.net/RPM-GPG-KEY-remi2021
+
+    - name: Install REMI repository
+      ansible.builtin.dnf:
+        name: 'https://rpms.remirepo.net/enterprise/remi-release-9.rpm'
+        state: present
+
+    - name: Reset PHP module
+      ansible.builtin.command: dnf -y module reset php
+      args:
+        creates: /etc/dnf/modules.d/php.module
+
+    - name: Enable REMI PHP 8.2 module
+      ansible.builtin.command: dnf -y module enable php:remi-8.2
+      args:
+        creates: /etc/dnf/modules.d/php.module
+
     - name: Install required packages
       ansible.builtin.package:
         name:
@@ -38,22 +62,23 @@
           - mariadb
           - mariadb-server
           - python3-PyMySQL
+          - redis
         state: present
 
     - name: Create nextcloud directory
       ansible.builtin.file:
         path: "{{ nextcloud_dir }}"
         state: directory
-        owner: root
-        group: root
-        mode: '0755'
+        owner: apache
+        group: apache
+        mode: '0775'
 
     - name: Move apache2 virtual host
       ansible.builtin.template:
         src: templates/nextcloud.conf.j2
         dest: /etc/httpd/conf.d/nextcloud.conf
-        owner: root
-        group: root
+        owner: apache
+        group: apache
         mode: "0644"
       notify: Restart apache2
 
@@ -66,6 +91,12 @@
     - name: Ensure mariadb is started and enabled
       ansible.builtin.service:
         name: mariadb
+        state: started
+        enabled: true
+
+    - name: Ensure php-fpm is started and enabled
+      ansible.builtin.service:
+        name: php-fpm
         state: started
         enabled: true
 
@@ -112,6 +143,38 @@
         priv: "{{ nextcloud_db_name }}.*:ALL"
         state: present
         login_unix_socket: /var/lib/mysql/mysql.sock
+
+    - name: Check if nextcloud is already downloaded
+      ansible.builtin.stat:
+        path: /opt/nextcloud-32.0.1.zip
+      register: nextcloud_downloaded
+
+    - name: Download nextcloud archive
+      ansible.builtin.get_url:
+        url: https://download.nextcloud.com/server/releases/nextcloud-32.0.1.zip
+        dest: /opt/
+        owner: root
+        group: root
+        mode: "0755"
+      when: not nextcloud_downloaded.stat.exists
+
+    - name: Unzip nextcloud archive
+      ansible.builtin.unarchive:
+        src: /opt/nextcloud-32.0.1.zip
+        dest: /var/www/html/
+        remote_src: true
+        creates: /var/www/html/nextcloud/robots.txt
+        owner: apache
+        group: apache
+        mode: "0775"
+
+    - name: Create folder for data
+      ansible.builtin.file:
+        path: /var/www/html/nextcloud/data
+        state: directory
+        owner: apache
+        group: apache
+        mode: '0775'
 
   handlers:
     - name: Load handlers
