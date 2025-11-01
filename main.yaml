@@ -8,83 +8,53 @@
       ansible.builtin.include_vars: vars/config.yaml
     - name: Load vault
       ansible.builtin.include_vars: vars/vault.yaml
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
   tags: always
 
   tasks:
-    - name: Disable SELinux permanently
-      ansible.posix.selinux:
-        state: disabled
-
-    - name: Import REMI GPG key
-      ansible.builtin.rpm_key:
-        state: present
-        key: https://rpms.remirepo.net/RPM-GPG-KEY-remi2021
-
-    - name: Install REMI repository
-      ansible.builtin.dnf:
-        name: 'https://rpms.remirepo.net/enterprise/remi-release-9.rpm'
-        state: present
-
-    - name: Reset PHP module
-      ansible.builtin.command: dnf -y module reset php
-      args:
-        creates: /etc/dnf/modules.d/php.module
-
-    - name: Enable REMI PHP 8.2 module
-      ansible.builtin.command: dnf -y module enable php:remi-8.2
-      args:
-        creates: /etc/dnf/modules.d/php.module
-
     - name: Install required packages
       ansible.builtin.package:
         name:
-          - epel-release
-          - yum-utils
-          - unzip
-          - curl
-          - wget
-          - policycoreutils-python-utils
-          - mlocate
-          - bzip2
-          - httpd
-          - php
-          - php-cli
-          - php-common
+          - apache2
+          - mariadb-client
+          - mariadb-server
+          - libapache2-mod-php
           - php-gd
+          - php-mysql
+          - php-curl
           - php-mbstring
           - php-intl
-          - php-mysqlnd
-          - php-opcache
-          - php-pecl-apcu
-          - php-pecl-zip
-          - php-pecl-redis6
-          - php-pecl-imagick
-          - mariadb
-          - mariadb-server
-          - python3-PyMySQL
-          - redis
+          - php-gmp
+          - php-xml
+          - php-imagick
+          - php-zip
+          - python3-pymysql
+          - unzip
         state: present
 
     - name: Create nextcloud directory
       ansible.builtin.file:
         path: "{{ nextcloud_dir }}"
         state: directory
-        owner: apache
-        group: apache
-        mode: '0775'
+        owner: www-data
+        group: www-data
+        mode: '0755'
 
-    - name: Move apache2 virtual host
+    - name: Move apache2 virtual host template
       ansible.builtin.template:
         src: templates/nextcloud.conf.j2
-        dest: /etc/httpd/conf.d/nextcloud.conf
-        owner: apache
-        group: apache
+        dest: /etc/apache2/sites-available/000-default.conf
+        owner: www-data
+        group: www-data
         mode: "0644"
       notify: Restart apache2
 
     - name: Ensure apache2 is started and enabled
       ansible.builtin.service:
-        name: httpd
+        name: apache2
         state: started
         enabled: true
 
@@ -94,46 +64,13 @@
         state: started
         enabled: true
 
-    - name: Ensure php-fpm is started and enabled
-      ansible.builtin.service:
-        name: php-fpm
-        state: started
-        enabled: true
-
-    - name: Configure mariadb
-      ansible.builtin.blockinfile:
-        path: /etc/my.cnf.d/mariadb-server.cnf
-        marker: "# {mark} ANSIBLE MANAGED BLOCK"
-        insertafter: ^\[mysqld\]
-        block: |
-          skip_name_resolve = 1
-          character_set_server = utf8mb4
-          collation_server = utf8mb4_general_ci
-          transaction_isolation = READ-COMMITTED
-          binlog_format = ROW
-          innodb_large_prefix=ON
-          innodb_file_format=Barracuda
-          innodb_file_per_table=1
-          innodb_buffer_pool_size = 128M
-          innodb_flush_log_at_trx_commit = 2
-          query_cache_type = 1
-          query_cache_limit = 2M
-          query_cache_size = 64M
-          tmp_table_size=64M
-          max_heap_table_size=64M
-          slow_query_log = 1
-          slow_query_log_file = /var/log/mysql/slow.log
-          long_query_time = 1
-        backup: true
-      notify: Restart mariadb
-
     - name: Create Nextcloud database
       community.mysql.mysql_db:
         name: "{{ nextcloud_db_name }}"
         state: present
         encoding: utf8mb4
         collation: utf8mb4_general_ci
-        login_unix_socket: /var/lib/mysql/mysql.sock
+        login_unix_socket: /run/mysqld/mysqld.sock
 
     - name: Create Nextcloud DB user
       community.mysql.mysql_user:
@@ -142,7 +79,7 @@
         host: localhost
         priv: "{{ nextcloud_db_name }}.*:ALL"
         state: present
-        login_unix_socket: /var/lib/mysql/mysql.sock
+        login_unix_socket: /run/mysqld/mysqld.sock
 
     - name: Check if nextcloud is already downloaded
       ansible.builtin.stat:
@@ -164,16 +101,16 @@
         dest: /var/www/html/
         remote_src: true
         creates: /var/www/html/nextcloud/robots.txt
-        owner: apache
-        group: apache
+        owner: www-data
+        group: www-data
         mode: "0775"
 
     - name: Create folder for data
       ansible.builtin.file:
         path: /var/www/html/nextcloud/data
         state: directory
-        owner: apache
-        group: apache
+        owner: www-data
+        group: www-data
         mode: '0775'
 
   handlers:
