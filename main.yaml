@@ -35,14 +35,6 @@
           - unzip
         state: present
 
-    - name: Create nextcloud directory
-      ansible.builtin.file:
-        path: "{{ nextcloud_dir }}"
-        state: directory
-        owner: www-data
-        group: www-data
-        mode: '0755'
-
     - name: Move apache2 virtual host template
       ansible.builtin.template:
         src: templates/nextcloud.conf.j2
