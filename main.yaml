@@ -1,6 +1,6 @@
 ---
 - name: Install and configure nextcloud
-  hosts: nextcloud
+  hosts: all
   become: true
 
   pre_tasks:
