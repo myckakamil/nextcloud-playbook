@@ -2,3 +2,6 @@
 nextcloud_db_name: nextclouddb
 nextcloud_db_user: db_user
 nextcloud_db_password: VeryHardPassword
+snmp_community: public
+snmp_email: mail@example.com
+snmp_location: City

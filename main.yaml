@@ -3,6 +3,9 @@
   hosts: all
   become: true
 
+  roles:
+    - myckakamil.snmpd
+
   pre_tasks:
     - name: Load variables
       ansible.builtin.include_vars: vars/config.yaml
