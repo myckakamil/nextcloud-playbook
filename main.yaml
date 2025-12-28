@@ -1,6 +1,6 @@
 ---
 - name: Install and configure nextcloud
-  hosts: all
+  hosts: nextcloud
   become: true
 
   roles:
@@ -108,6 +108,34 @@
         group: www-data
         mode: '0775'
 
+    - name: Allow access from trusted_domains
+      ansible.builtin.replace:
+        path: /var/www/html/nextcloud/config/config.php
+        regexp: '''trusted_domains''\s*=>\s*array\s*\([\s\S]*?\)\s*,?\n+'
+        replace: |
+          'trusted_domains' =>
+            'array' (
+              0 => '{{ ansible_default_ipv4.address }}',
+              1 => '{{ nginx_proxy_domain }}',
+            ),
+      notify: Restart apache2
+
+    - name: Set overwrite.cli.url to FQDN
+      ansible.builtin.replace:
+        path: /var/www/html/nextcloud/config/config.php
+        regexp: '''overwrite\.cli\.url''\s*=>\s*''.*?'''
+        replace: "'overwrite.cli.url' => 'https://{{ nginx_proxy_domain }}'"
+      notify: Restart apache2
+
   handlers:
     - name: Load handlers
       ansible.builtin.import_tasks: tasks/handlers.yaml
+
+- name: Configure https proxy
+  hosts: proxy
+  become: true
+  vars_files:
+    - vars/config.yaml
+    - vars/vault.yaml
+  roles:
+    - myckakamil.proxy

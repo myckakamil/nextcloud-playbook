@@ -2,3 +2,8 @@
 domain: lan.mycka.net
 server_name: nextcloud
 nextcloud_dir: /var/www/html/nextcloud/
+
+nginx_proxy_domain: "{{ server_name }}.{{ domain }}"
+nginx_proxy_email: "{{ snmp_email }}"
+nginx_proxy_backend_port: 80
+nginx_proxy_backend_host: 172.30.20.11
