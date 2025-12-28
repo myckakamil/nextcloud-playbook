@@ -114,7 +114,7 @@
         regexp: '''trusted_domains''\s*=>\s*array\s*\([\s\S]*?\)\s*,?\n+'
         replace: |
           'trusted_domains' =>
-            'array' (
+            array (
               0 => '{{ ansible_default_ipv4.address }}',
               1 => '{{ nginx_proxy_domain }}',
             ),
