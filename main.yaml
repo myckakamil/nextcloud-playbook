@@ -106,26 +106,37 @@
         state: directory
         owner: www-data
         group: www-data
-        mode: '0775'
+        mode: '0770'
 
     - name: Allow access from trusted_domains
       ansible.builtin.replace:
         path: /var/www/html/nextcloud/config/config.php
-        regexp: '''trusted_domains''\s*=>\s*array\s*\([\s\S]*?\)\s*,?\n+'
+        regexp: "'trusted_domains'\\s*=>\\s*array\\s*\\([^)]*\\),\\s*"
         replace: |
           'trusted_domains' =>
-            array (
-              0 => '{{ ansible_default_ipv4.address }}',
-              1 => '{{ nginx_proxy_domain }}',
-            ),
-      notify: Restart apache2
+          array (
+            0 => '{{ nginx_proxy_domain }}',
+          ),
 
-    - name: Set overwrite.cli.url to FQDN
+    - name: Change overwrite.cli.url
       ansible.builtin.replace:
         path: /var/www/html/nextcloud/config/config.php
-        regexp: '''overwrite\.cli\.url''\s*=>\s*''.*?'''
-        replace: "'overwrite.cli.url' => 'https://{{ nginx_proxy_domain }}'"
-      notify: Restart apache2
+        regexp: "'overwrite\\.cli\\.url' => 'https?://[^']*',"
+        replace: "'overwrite.cli.url' => 'https://{{ nginx_proxy_domain }}',"
+
+    - name: Configure rest of Nextcloud proxy settings
+      ansible.builtin.blockinfile:
+        path: /var/www/html/nextcloud/config/config.php
+        marker: "/* {mark} ANSIBLE MANAGED NEXTCLOUD PROXY SETTINGS */"
+        insertafter: "^\\$CONFIG = array \\("
+        block: |
+          'trusted_proxies' => array (
+            0 => '{{ nginx_proxy_ip }}',
+          ),
+          'overwriteprotocol' => 'https',
+          'forwarded_for_headers' => array (
+            0 => 'HTTP_X_FORWARDED_FOR',
+          ),
 
   handlers:
     - name: Load handlers
